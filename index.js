@@ -66,6 +66,29 @@ app.get('/foodPost-available/:_id', async (req, res) => {
 });
 
 
+
+app.patch('/foodPost-available/:id', async (req, res) => {
+  const id = req.params.id;
+  const { status, note, updatedAt } = req.body;
+
+  const filter = { _id: new ObjectId(id) };
+
+  const updateDoc = {
+    $set: {
+      'foodData.status': status,
+      'foodData.notes': note,
+      'foodData.updatedAt': updatedAt || new Date()
+    }
+  };
+
+  const result = await foodItems.updateOne(filter, updateDoc);
+  res.send(result);
+});
+
+
+
+
+
   
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
