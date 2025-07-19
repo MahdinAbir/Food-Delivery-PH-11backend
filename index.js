@@ -66,24 +66,44 @@ app.get('/foodPost-available/:_id', async (req, res) => {
 });
 
 
-
 app.patch('/foodPost-available/:id', async (req, res) => {
   const id = req.params.id;
-  const { status, note, updatedAt } = req.body;
+  const { AdditionalNotes, status } = req.body;
 
   const filter = { _id: new ObjectId(id) };
 
   const updateDoc = {
     $set: {
+      'foodData.additionalNotes': AdditionalNotes,
       'foodData.status': status,
-      'foodData.notes': note,
-      'foodData.updatedAt': updatedAt || new Date()
+      'foodData.updatedAt': new Date()
     }
   };
 
   const result = await foodItems.updateOne(filter, updateDoc);
   res.send(result);
 });
+
+
+
+app.get('/foodRequest', async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).send("Email query parameter is required");
+  }
+
+  const result = await foodItems.find({
+    "foodData.status": "requested",
+    "foodData.donorEmail": email
+  }).toArray();
+
+  res.send(result);
+});
+
+
+
+
 
 
 
