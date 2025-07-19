@@ -8,6 +8,12 @@ app.use(cors());
 app.use(express.json());
 
 require('dotenv').config();
+var admin = require("firebase-admin");
+var serviceAccount = require("./FIrebaseToken.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 
 
@@ -29,6 +35,33 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+
+
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Unauthorized: No token provided" });
+  }
+
+  const idToken = authHeader.split("Bearer ")[1];
+
+  try {
+    const decodedUser = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedUser; // ← You can access req.user.email if needed
+    next();
+  } catch (error) {
+    console.error("Token verification error:", error);
+    res.status(403).json({ message: "Forbidden: Invalid token" });
+  }
+};
+
+
+
+
+
 
 async function run() {
   try {
@@ -56,7 +89,7 @@ async function run() {
     res.send(result);
 });
 
-app.get('/foodPost-available/:_id', async (req, res) => {
+app.get('/foodPost-available/:_id',  async (req, res) => {
   const id = req.params._id;
   const query = { _id: new ObjectId(id) };
 
@@ -66,7 +99,7 @@ app.get('/foodPost-available/:_id', async (req, res) => {
 });
 
 
-app.patch('/foodPost-available/:id', async (req, res) => {
+app.patch('/foodPost-available/:id',verifyToken, async (req, res) => {
   const id = req.params.id;
   const { AdditionalNotes, status } = req.body;
 
@@ -86,7 +119,7 @@ app.patch('/foodPost-available/:id', async (req, res) => {
 
 
 
-app.get('/foodRequest', async (req, res) => {
+app.get('/foodRequest', verifyToken, async (req, res) => {
   const { email } = req.query;
 
   if (!email) {
@@ -100,6 +133,87 @@ app.get('/foodRequest', async (req, res) => {
 
   res.send(result);
 });
+
+
+
+
+app.get('/myFoods', verifyToken, async (req, res) => {
+  try {
+    const userEmail = req.user.email; // get email from verified token
+
+    // Find food posts where donorEmail matches logged-in user’s email
+    const myFoods = await foodItems.find({
+      "foodData.donorEmail": userEmail
+    }).toArray();
+
+    res.send(myFoods);
+  } catch (error) {
+    console.error("Error fetching user's foods:", error);
+    res.status(500).send("Server error");
+  }
+});
+
+
+app.patch('/foodPost-available/:id', verifyToken, async (req, res) => {
+  const id = req.params.id;
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid food ID" });
+  }
+
+  try {
+    const food = await foodItems.findOne({ _id: new ObjectId(id) });
+    if (!food) return res.status(404).json({ message: "Food not found" });
+
+    if (food.foodData.donorEmail !== req.user.email) {
+      return res.status(403).json({ message: "Forbidden: You don't own this food post" });
+    }
+
+    // Build update object from request body (only update provided fields)
+    const updateFields = {};
+    for (const [key, value] of Object.entries(req.body)) {
+      updateFields[`foodData.${key}`] = value;
+    }
+    updateFields['foodData.updatedAt'] = new Date();
+
+    const result = await foodItems.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateFields }
+    );
+
+    res.send(result);
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ message: "Server error updating food" });
+  }
+});
+
+// Delete a food post by ID - only if owner
+app.delete('/foodPost-available/:id', verifyToken, async (req, res) => {
+  const id = req.params.id;
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid food ID" });
+  }
+
+  try {
+    const food = await foodItems.findOne({ _id: new ObjectId(id) });
+    if (!food) return res.status(404).json({ message: "Food not found" });
+
+    if (food.foodData.donorEmail !== req.user.email) {
+      return res.status(403).json({ message: "Forbidden: You don't own this food post" });
+    }
+
+    const result = await foodItems.deleteOne({ _id: new ObjectId(id) });
+
+    res.send({ message: "Food deleted", deletedCount: result.deletedCount });
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).json({ message: "Server error deleting food" });
+  }
+});
+
+
+
+
 
 
 
