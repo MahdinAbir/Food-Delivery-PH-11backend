@@ -17,7 +17,7 @@ require('dotenv').config();
 
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@clusterabir.tkzrtc8.mongodb.net/?retryWrites=true&w=majority&appName=ClusterAbir`;
 console.log(process.env.DB_USER)
 
@@ -54,6 +54,15 @@ async function run() {
     const result = await foodItems.find({ "foodData.status" :"available" }).sort( { "foodData.expireDate": 1 } ).toArray()
 
     res.send(result);
+});
+
+app.get('/foodPost-available/:_id', async (req, res) => {
+  const id = req.params._id;
+  const query = { _id: new ObjectId(id) };
+
+  const result = await foodItems.findOne(query);
+
+  res.send(result);
 });
 
 
