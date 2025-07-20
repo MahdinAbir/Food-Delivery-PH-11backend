@@ -109,7 +109,9 @@ app.patch('/foodPost-available/:id',verifyToken, async (req, res) => {
     $set: {
       'foodData.additionalNotes': AdditionalNotes,
       'foodData.status': status,
-      'foodData.updatedAt': new Date()
+      'foodData.updatedAt': new Date(),
+      ...(status === "requested" && { "foodData.requesterEmail": req.user.email }),
+
     }
   };
 
@@ -128,7 +130,7 @@ app.get('/foodRequest', verifyToken, async (req, res) => {
 
   const result = await foodItems.find({
     "foodData.status": "requested",
-    "foodData.donorEmail": email
+    "foodData.requesterEmail": email
   }).toArray();
 
   res.send(result);
