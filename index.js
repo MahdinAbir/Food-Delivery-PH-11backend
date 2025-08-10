@@ -25,9 +25,9 @@ admin.initializeApp({
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@clusterabir.tkzrtc8.mongodb.net/?retryWrites=true&w=majority&appName=ClusterAbir`;
-console.log(process.env.DB_USER)
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+
+
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -50,7 +50,7 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const decodedUser = await admin.auth().verifyIdToken(idToken);
-    req.user = decodedUser; // ← You can access req.user.email if needed
+    req.user = decodedUser; 
     next();
   } catch (error) {
     console.error("Token verification error:", error);
@@ -65,8 +65,8 @@ const verifyToken = async (req, res, next) => {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    
+    
 
     const foodItems = client.db("FoodShare").collection("FoodCollection");
 
@@ -141,9 +141,9 @@ app.get('/foodRequest', verifyToken, async (req, res) => {
 
 app.get('/myFoods', verifyToken, async (req, res) => {
   try {
-    const userEmail = req.user.email; // get email from verified token
+    const userEmail = req.user.email; 
 
-    // Find food posts where donorEmail matches logged-in user’s email
+ 
     const myFoods = await foodItems.find({
       "foodData.donorEmail": userEmail
     }).toArray();
@@ -156,21 +156,62 @@ app.get('/myFoods', verifyToken, async (req, res) => {
 });
 
 
-app.patch('/foodPost-available/:id', verifyToken, async (req, res) => {
+// app.patch('/foodPost-available/:id', verifyToken, async (req, res) => {
+//   const id = req.params.id;
+//   if (!ObjectId.isValid(id)) {
+//     return res.status(400).json({ message: "Invalid food ID" });
+//   }
+
+//   try {
+//     const food = await foodItems.findOne({ _id: new ObjectId(id) });
+//     if (!food) return res.status(404).json({ message: "Food not found" });
+
+//     if (food.foodData.donorEmail !== req.user.email) {
+//       return res.status(403).json({ message: "Forbidden: You don't own this food post" });
+//     }
+
+    
+//     const updateFields = {};
+//     for (const [key, value] of Object.entries(req.body)) {
+//       updateFields[ `foodData.${key}`] = value;
+//     }
+//     updateFields['foodData.updatedAt'] = new Date();
+
+//     const result = await foodItems.updateOne(
+//       { _id: new ObjectId(id) },
+//       { $set: updateFields }
+//     );
+
+//     res.send(result);
+//   } catch (error) {
+//     console.error("Update error:", error);
+//     res.status(500).json({ message: "Server error updating food" });
+//   }
+// });
+
+
+
+// Update a food post by ID (PUT instead of PATCH)
+app.put('/foodPost-available/:id', verifyToken, async (req, res) => {
   const id = req.params.id;
+  console.log(id)
+
   if (!ObjectId.isValid(id)) {
     return res.status(400).json({ message: "Invalid food ID" });
   }
 
   try {
     const food = await foodItems.findOne({ _id: new ObjectId(id) });
-    if (!food) return res.status(404).json({ message: "Food not found" });
-
-    if (food.foodData.donorEmail !== req.user.email) {
-      return res.status(403).json({ message: "Forbidden: You don't own this food post" });
+    if (!food) {
+      return res.status(404).json({ message: "Food not found" });
     }
 
-    // Build update object from request body (only update provided fields)
+    // Only the owner (donor) can update
+    if (food.foodData.donorEmail !== req.user.email) {
+      return res.status(403).json({ message: "Forbidden: Not your food post" });
+    }
+
+    // Prepare update fields
     const updateFields = {};
     for (const [key, value] of Object.entries(req.body)) {
       updateFields[`foodData.${key}`] = value;
@@ -184,10 +225,16 @@ app.patch('/foodPost-available/:id', verifyToken, async (req, res) => {
 
     res.send(result);
   } catch (error) {
-    console.error("Update error:", error);
-    res.status(500).json({ message: "Server error updating food" });
+    console.error('Error during PUT:', error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
+
+
+
+
+
+
 
 // Delete a food post by ID - only if owner
 app.delete('/foodPost-available/:id', verifyToken, async (req, res) => {
@@ -227,11 +274,10 @@ app.delete('/foodPost-available/:id', verifyToken, async (req, res) => {
 
   
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    
   }
 }
 run().catch(console.dir);
